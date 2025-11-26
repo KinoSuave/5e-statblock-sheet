@@ -234,10 +234,12 @@ class StatblockSheet extends dnd5e.applications.actor.NPCActorSheet {
     }
 
     static _onUseItem(event, target) {
-        const { itemId } = target.closest("[data-item-id]")?.dataset ?? {};
-        const item = this.actor.items.get(itemId);
-        if ( !item || (target.ariaDisabled === "true") ) return;
-        return item.use({ event });
+        if (!this._mode || this._mode === this.constructor.MODES.PLAY) {
+            const { itemId } = target.closest("[data-item-id]")?.dataset ?? {};
+            const item = this.actor.items.get(itemId);
+            if ( !item || (target.ariaDisabled === "true") ) return;
+            return item.use({ event });
+        }
     }
 }
 
