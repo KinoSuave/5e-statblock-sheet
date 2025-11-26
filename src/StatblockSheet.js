@@ -57,56 +57,67 @@ class StatblockSheet extends dnd5e.applications.actor.NPCActorSheet {
             }
         };
 
+        const itemCategory = (item) => {
+            if (item.system.properties.has("trait")) {
+                return "trait";
+            }
+
+            const activationType = item.system.activities?.contents[0]?.activation?.type;
+
+            if (activationType in context.actionSections) {
+                return activationType;
+            }
+
+            return "trait";
+        };
+
         for ( const item of this.actor.items ) {
             if ( !["feat", "weapon"].includes(item.type) ) continue;
-            const category = item.system.properties.has("trait") ? "trait"
-                : (item.system.activities?.contents[0]?.activation?.type ?? "trait");
-            if ( category in context.actionSections ) {
-                // Replace @UUID embeds with [[/item]] embeds
-                let originalDescription = item.system.description.value;
-                let description = originalDescription.replace(/@UUID\[[^\]]+\]\{(?<name>[^\}]+)\}/g, (match, name) => {
-                    const itemOnActor = this.actor.items.find(i => i.name === name);
-                    if (itemOnActor) return `[[/item .${itemOnActor.id}]]`;
-                    return match;
-                });
-                description = (await TextEditor.enrichHTML(description, {
-                    secrets: false, rollData: item.getRollData(), relativeTo: item
-                }));
-                if ( item.identifier === "legendary-actions" ) {
-                    context.actionSections.legendary.description = description;
-                } else {
-                    // Parse the description as HTML, so it can be navigated through
-                    let descriptionElement = domParser.parseFromString(description, "text/html").getElementsByTagName("body")[0];
+            const category = itemCategory(item);
+            // Replace @UUID embeds with [[/item]] embeds
+            const originalDescription = item.system.description.value;
+            let description = originalDescription.replace(/@UUID\[[^\]]+\]\{(?<name>[^\}]+)\}/g, (match, name) => {
+                const itemOnActor = this.actor.items.find(i => i.name === name);
+                if (itemOnActor) return `[[/item .${itemOnActor.id}]]`;
+                return match;
+            });
+            description = (await TextEditor.enrichHTML(description, {
+                secrets: false, rollData: item.getRollData(), relativeTo: item
+            }));
+            if ( item.identifier === "legendary-actions" ) {
+                context.actionSections.legendary.description = description;
+            } else {
+                // Parse the description as HTML, so it can be navigated through
+                let descriptionElement = domParser.parseFromString(description, "text/html").getElementsByTagName("body")[0];
 
-                    // Ignore extraneous div wrappers
-                    while (descriptionElement.children.length === 1 && descriptionElement.firstElementChild?.nodeName.toLowerCase() === "div") {
-                        descriptionElement = descriptionElement.firstElementChild;
-                    }
-
-                    const openingParagraph = descriptionElement.getElementsByTagName("p")[0];
-                    const targetElement = openingParagraph ?? descriptionElement.firstElementChild ?? descriptionElement;
-                    const enrichedName = `<span class="statblock-roll-link-group" data-roll-item-uuid="${item.uuid}">
-                        <span class="roll-link" data-action="use" data-item-id="${item.id}">${item.name}</span>
-                    </span>`;
-
-                    // Split the description into an opening and rest section
-                    const splitter = `<div id="statblock-splitter"></div>`;
-
-                    targetElement.innerHTML = enrichedName + splitter + targetElement.innerHTML;
-
-                    const descriptionParts = descriptionElement.innerHTML.split(splitter);
-                    const openingTag = descriptionParts[0];
-                    const descriptionRest = descriptionParts[1];
-
-                    const uses = item.system.uses.label || item.system.activities?.contents[0]?.uses.label;
-
-                    context.actionSections[category].actions.push({
-                        description: descriptionRest,
-                        openingTag,
-                        name: uses ? ` (${uses})` : "",
-                        sort: item.sort
-                    });
+                // Ignore extraneous div wrappers
+                while (descriptionElement.children.length === 1 && descriptionElement.firstElementChild?.nodeName.toLowerCase() === "div") {
+                    descriptionElement = descriptionElement.firstElementChild;
                 }
+
+                const openingParagraph = descriptionElement.getElementsByTagName("p")[0];
+                const targetElement = openingParagraph ?? descriptionElement.firstElementChild ?? descriptionElement;
+                const enrichedName = `<span class="statblock-roll-link-group" data-roll-item-uuid="${item.uuid}">
+                    <span class="roll-link" data-action="use" data-item-id="${item.id}">${item.name}</span>
+                </span>`;
+
+                // Split the description into an opening and rest section
+                const splitter = `<div id="statblock-splitter"></div>`;
+
+                targetElement.innerHTML = enrichedName + splitter + targetElement.innerHTML;
+
+                const descriptionParts = descriptionElement.innerHTML.split(splitter);
+                const openingTag = descriptionParts[0];
+                const descriptionRest = descriptionParts[1];
+
+                const uses = item.system.uses.label || item.system.activities?.contents[0]?.uses.label;
+
+                context.actionSections[category].actions.push({
+                    description: descriptionRest,
+                    openingTag,
+                    name: uses ? ` (${uses})` : "",
+                    sort: item.sort
+                });
             }
         }
         for ( const [key, section] of Object.entries(context.actionSections) ) {
